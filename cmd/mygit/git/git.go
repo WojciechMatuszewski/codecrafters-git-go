@@ -206,11 +206,11 @@ func (r *Repository) ReadTree(hash string) (string, error) {
 			return "", fmt.Errorf("error reading mode: %w", err)
 		}
 
-		name, err := br.ReadString('\000')
+		name, err := br.ReadString('\x00')
 		if err != nil {
 			return "", fmt.Errorf("error reading name: %w", err)
 		}
-		names = append(names, name)
+		names = append(names, strings.Split(name, "\x00")[0])
 
 		_, err = br.Read(make([]byte, 20))
 		if err != nil {
