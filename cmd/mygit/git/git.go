@@ -210,7 +210,7 @@ func (r *Repository) ReadTree(hash string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("error reading name: %w", err)
 		}
-		names = append(names, name)
+		names = append(names, name[:len("\x00")-1])
 
 		_, err = br.Read(make([]byte, 20))
 		if err != nil {
