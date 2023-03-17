@@ -218,6 +218,6 @@ func (r *Repository) ReadTree(hash string) (string, error) {
 		}
 	}
 
-	contents := strings.Join(sort.StringSlice(names), "\n")
+	contents := strings.Join(sort.StringSlice(names), "\n") + "\n"
 	return contents, nil
 }
