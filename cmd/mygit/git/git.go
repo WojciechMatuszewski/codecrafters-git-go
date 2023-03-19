@@ -284,7 +284,7 @@ func (r *Repository) treeTable(dirname string) (string, error) {
 				return "", fmt.Errorf("failed to write the tree: %w", err)
 			}
 
-			table = fmt.Appendf(table, "40000 %s\x00%s", dirEntry.Name(), sha1.Sum([]byte(subHash)))
+			table = fmt.Appendf(table, "40000 %s\x00%x", dirEntry.Name(), sha1.Sum([]byte(subHash)))
 
 		} else {
 			hash, _, err := r.hashBlob(os.DirFS(dirname), dirEntry.Name())
