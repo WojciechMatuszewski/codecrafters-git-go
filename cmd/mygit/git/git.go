@@ -213,7 +213,7 @@ func (r *Repository) WriteTree(dirname string) (string, error) {
 		return "", fmt.Errorf("failed to hash the tree: %w", err)
 	}
 
-	output := fmt.Appendf([]byte{}, "tree %d\x00 %s", len(treeTable), treeTable)
+	output := fmt.Appendf([]byte{}, "tree %d\x00%s", len(treeTable), treeTable)
 	if err != nil {
 		return "", fmt.Errorf("failed to copy the contents: %w", err)
 	}
