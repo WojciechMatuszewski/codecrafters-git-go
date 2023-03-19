@@ -223,8 +223,6 @@ func (r *Repository) WriteTree(dirname string) (string, error) {
 		return "", fmt.Errorf("failed to copy the contents: %w", err)
 	}
 
-	fmt.Println(output.String())
-
 	hash := fmt.Sprintf("%x", sha1.Sum(output.Bytes()))
 
 	dirPath := path.Join(r.root, ".git/objects", hash[:2])
