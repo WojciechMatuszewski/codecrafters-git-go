@@ -2,6 +2,7 @@ package git
 
 import (
 	"bufio"
+	"bytes"
 	"compress/zlib"
 	"crypto/sha1"
 	"errors"
@@ -110,26 +111,11 @@ func (r *Repository) CatFile(hash string) (string, error) {
 }
 
 func (r *Repository) WriteBlob(fs fs.FS, filename string) (string, error) {
-	f, err := fs.Open(filename)
+	hash, blob, err := r.hashBlob(fs, filename)
 	if err != nil {
-		return "", fmt.Errorf("failed to open file: %w", err)
-	}
-	defer f.Close()
-
-	info, err := f.Stat()
-	if err != nil {
-		return "", fmt.Errorf("failed to get file info: %w", err)
+		return "", fmt.Errorf("failed to hash the file: %w", err)
 	}
 
-	fBuf, err := ioutil.ReadAll(f)
-	if err != nil {
-		return "", fmt.Errorf("failed to copy the contents: %w", err)
-	}
-
-	header := append([]byte(fmt.Sprintf("blob %d", info.Size())), byte(0))
-	blob := append(header, fBuf...)
-
-	hash := fmt.Sprintf("%x", sha1.Sum(blob))
 	dirPath := path.Join(r.root, ".git/objects", hash[:2])
 	err = os.MkdirAll(dirPath, 0755)
 	if err != nil {
@@ -220,4 +206,70 @@ func (r *Repository) ReadTree(hash string) (string, error) {
 
 	contents := strings.Join(sort.StringSlice(names), "\n") + "\n"
 	return contents, nil
+}
+
+func (r *Repository) WriteTree(dirname string) (string, error) {
+
+	dirEntries, err := os.ReadDir(dirname)
+	if err != nil {
+		return "", fmt.Errorf("failed to read the directory: %w", err)
+	}
+
+	var table bytes.Buffer
+	for _, dirEntry := range dirEntries {
+		if dirEntry.IsDir() {
+			if dirEntry.Name() == ".git" {
+				continue
+			}
+
+			subHash, err := r.WriteTree((path.Join(dirname, dirEntry.Name())))
+			if err != nil {
+				return "", fmt.Errorf("failed to write the tree: %w", err)
+			}
+
+			table.WriteString(fmt.Sprintf("40000 %s\x00", dirEntry.Name()))
+			table.WriteString(fmt.Sprintf("%x", sha1.Sum([]byte(subHash))))
+		} else {
+			hash, _, err := r.hashBlob(os.DirFS(dirname), dirEntry.Name())
+			if err != nil {
+				return "", fmt.Errorf("failed to hash the file: %w", err)
+			}
+
+			table.WriteString(fmt.Sprintf("100644 %s\x00", dirEntry.Name()))
+			table.WriteString(hash)
+		}
+	}
+
+	var output bytes.Buffer
+	output.WriteString(fmt.Sprintf("tree %d\x00", table.Len()))
+	_, err = io.Copy(&output, &table)
+	if err != nil {
+		return "", fmt.Errorf("failed to copy the contents: %w", err)
+	}
+
+	return fmt.Sprintf("%x", sha1.Sum(output.Bytes())), nil
+}
+
+func (r *Repository) hashBlob(fsys fs.FS, filename string) (string, []byte, error) {
+	file, err := fsys.Open(filename)
+	if err != nil {
+		return "", []byte{}, fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		return "", []byte{}, fmt.Errorf("failed to get file info: %w", err)
+	}
+
+	fBuf, err := ioutil.ReadAll(file)
+	if err != nil {
+		return "", []byte{}, fmt.Errorf("failed to copy the contents: %w", err)
+	}
+
+	header := append([]byte(fmt.Sprintf("blob %d", info.Size())), byte(0))
+	blob := append(header, fBuf...)
+
+	hash := fmt.Sprintf("%x", sha1.Sum(blob))
+	return hash, blob, nil
 }

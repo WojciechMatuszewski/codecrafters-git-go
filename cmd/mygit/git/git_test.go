@@ -199,6 +199,33 @@ func TestReadTree(t *testing.T) {
 	})
 }
 
+func TestWriteTree(t *testing.T) {
+	t.Run("Succeeds", func(t *testing.T) {
+
+		wd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("error getting working directory: %v", err)
+		}
+
+		root := os.TempDir()
+		cmd := exec.Command("cp", "-r", path.Join(wd, "./fixtures/writing_tree"), root)
+		err = cmd.Run()
+		if err != nil {
+			t.Fatalf("error copying testdata: %v", err)
+		}
+
+		fixturePath := path.Join(root, "writing_tree")
+		repository := git.NewRepository(fixturePath)
+
+		hash, err := repository.WriteTree(fixturePath)
+		if err != nil {
+			t.Fatalf("error writing tree: %v", err)
+		}
+
+		fmt.Println(hash)
+	})
+}
+
 func cleanup(t *testing.T, p string) {
 	t.Helper()
 	err := os.RemoveAll(path.Join(p, ".git"))

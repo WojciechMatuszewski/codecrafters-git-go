@@ -32,6 +32,7 @@ const (
 	CatFile    Command = "cat-file"
 	HashObject Command = "hash-object"
 	LsTree     Command = "ls-tree"
+	WriteTree  Command = "write-tree"
 )
 
 func run(root string, command Command) error {
@@ -100,6 +101,16 @@ func run(root string, command Command) error {
 		}
 
 		out, err := repository.ReadTree(*fsNameOnly)
+		if err != nil {
+			return err
+		}
+
+		fmt.Print(out)
+		return nil
+	}
+
+	if command == WriteTree {
+		out, err := repository.WriteTree(".")
 		if err != nil {
 			return err
 		}
