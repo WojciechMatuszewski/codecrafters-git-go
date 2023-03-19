@@ -187,6 +187,8 @@ func (r *Repository) ReadTree(hash string) (string, error) {
 			return "", fmt.Errorf("error peeking: %w", err)
 		}
 
+		// buff, err := ioutil.ReadAll(br)
+		// fmt.Println(string(buff))
 		_, err = br.ReadString(' ')
 		if err != nil {
 			return "", fmt.Errorf("error reading mode: %w", err)
@@ -209,45 +211,42 @@ func (r *Repository) ReadTree(hash string) (string, error) {
 }
 
 func (r *Repository) WriteTree(dirname string) (string, error) {
-
-	dirEntries, err := os.ReadDir(dirname)
+	treeTable, err := r.treeTable(dirname)
 	if err != nil {
-		return "", fmt.Errorf("failed to read the directory: %w", err)
-	}
-
-	var table bytes.Buffer
-	for _, dirEntry := range dirEntries {
-		if dirEntry.IsDir() {
-			if dirEntry.Name() == ".git" {
-				continue
-			}
-
-			subHash, err := r.WriteTree((path.Join(dirname, dirEntry.Name())))
-			if err != nil {
-				return "", fmt.Errorf("failed to write the tree: %w", err)
-			}
-
-			table.WriteString(fmt.Sprintf("40000 %s\x00", dirEntry.Name()))
-			table.WriteString(fmt.Sprintf("%x", sha1.Sum([]byte(subHash))))
-		} else {
-			hash, _, err := r.hashBlob(os.DirFS(dirname), dirEntry.Name())
-			if err != nil {
-				return "", fmt.Errorf("failed to hash the file: %w", err)
-			}
-
-			table.WriteString(fmt.Sprintf("100644 %s\x00", dirEntry.Name()))
-			table.WriteString(hash)
-		}
+		return "", fmt.Errorf("failed to hash the tree: %w", err)
 	}
 
 	var output bytes.Buffer
-	output.WriteString(fmt.Sprintf("tree %d\x00", table.Len()))
-	_, err = io.Copy(&output, &table)
+	output.WriteString(fmt.Sprintf("tree %d\x00", len(treeTable)))
+	output.WriteString(treeTable)
 	if err != nil {
 		return "", fmt.Errorf("failed to copy the contents: %w", err)
 	}
 
-	return fmt.Sprintf("%x", sha1.Sum(output.Bytes())), nil
+	fmt.Println(output.String())
+
+	hash := fmt.Sprintf("%x", sha1.Sum(output.Bytes()))
+
+	dirPath := path.Join(r.root, ".git/objects", hash[:2])
+	err = os.MkdirAll(dirPath, 0755)
+	if err != nil {
+		return "", fmt.Errorf("failed to create the directory: %w", err)
+	}
+
+	treeFile, err := os.Create(path.Join(dirPath, hash[2:]))
+	if err != nil {
+		return "", fmt.Errorf("failed to create the file: %w", err)
+	}
+
+	w := zlib.NewWriter(treeFile)
+	defer w.Close()
+
+	_, err = w.Write(output.Bytes())
+	if err != nil {
+		return "", fmt.Errorf("failed to compress the contents: %w", err)
+	}
+
+	return hash, nil
 }
 
 func (r *Repository) hashBlob(fsys fs.FS, filename string) (string, []byte, error) {
@@ -272,4 +271,36 @@ func (r *Repository) hashBlob(fsys fs.FS, filename string) (string, []byte, erro
 
 	hash := fmt.Sprintf("%x", sha1.Sum(blob))
 	return hash, blob, nil
+}
+
+func (r *Repository) treeTable(dirname string) (string, error) {
+	dirEntries, err := os.ReadDir(dirname)
+	if err != nil {
+		return "", fmt.Errorf("failed to read the directory: %w", err)
+	}
+
+	var table bytes.Buffer
+	for _, dirEntry := range dirEntries {
+		if dirEntry.IsDir() {
+			if dirEntry.Name() == ".git" {
+				continue
+			}
+
+			subHash, err := r.treeTable((path.Join(dirname, dirEntry.Name())))
+			if err != nil {
+				return "", fmt.Errorf("failed to write the tree: %w", err)
+			}
+
+			table.WriteString(fmt.Sprintf("40000 %s\x00%x", dirEntry.Name(), sha1.Sum([]byte(subHash))))
+		} else {
+			hash, _, err := r.hashBlob(os.DirFS(dirname), dirEntry.Name())
+			if err != nil {
+				return "", fmt.Errorf("failed to hash the file: %w", err)
+			}
+
+			table.WriteString(fmt.Sprintf("100644 %s\x00%s", dirEntry.Name(), hash))
+		}
+	}
+
+	return table.String(), nil
 }

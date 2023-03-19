@@ -222,7 +222,12 @@ func TestWriteTree(t *testing.T) {
 			t.Fatalf("error writing tree: %v", err)
 		}
 
-		fmt.Println(hash)
+		tree, err := repository.ReadTree(hash)
+		if err != nil {
+			t.Fatalf("error reading tree: %v", err)
+		}
+
+		fmt.Println(tree)
 	})
 }
 
