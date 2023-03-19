@@ -187,8 +187,6 @@ func (r *Repository) ReadTree(hash string) (string, error) {
 			return "", fmt.Errorf("error peeking: %w", err)
 		}
 
-		// buff, err := ioutil.ReadAll(br)
-		// fmt.Println(string(buff))
 		_, err = br.ReadString(' ')
 		if err != nil {
 			return "", fmt.Errorf("error reading mode: %w", err)
@@ -217,8 +215,7 @@ func (r *Repository) WriteTree(dirname string) (string, error) {
 	}
 
 	var output bytes.Buffer
-	output.WriteString(fmt.Sprintf("tree %d\x00", len(treeTable)))
-	output.WriteString(treeTable)
+	output.WriteString(fmt.Sprintf("tree %d\x00%s", len(treeTable), treeTable))
 	if err != nil {
 		return "", fmt.Errorf("failed to copy the contents: %w", err)
 	}
