@@ -2,7 +2,6 @@ package git
 
 import (
 	"bufio"
-	"bytes"
 	"compress/zlib"
 	"crypto/sha1"
 	"errors"
@@ -214,13 +213,12 @@ func (r *Repository) WriteTree(dirname string) (string, error) {
 		return "", fmt.Errorf("failed to hash the tree: %w", err)
 	}
 
-	var output bytes.Buffer
-	output.WriteString(fmt.Sprintf("tree %d\x00%s", len(treeTable), treeTable))
+	output := fmt.Appendf([]byte{}, "tree %d\x00 %s", len(treeTable), treeTable)
 	if err != nil {
 		return "", fmt.Errorf("failed to copy the contents: %w", err)
 	}
 
-	hash := fmt.Sprintf("%x", sha1.Sum(output.Bytes()))
+	hash := fmt.Sprintf("%x", sha1.Sum(output))
 
 	dirPath := path.Join(r.root, ".git/objects", hash[:2])
 	err = os.MkdirAll(dirPath, 0755)
@@ -236,7 +234,7 @@ func (r *Repository) WriteTree(dirname string) (string, error) {
 	w := zlib.NewWriter(treeFile)
 	defer w.Close()
 
-	_, err = w.Write(output.Bytes())
+	_, err = w.Write(output)
 	if err != nil {
 		return "", fmt.Errorf("failed to compress the contents: %w", err)
 	}
@@ -274,7 +272,7 @@ func (r *Repository) treeTable(dirname string) (string, error) {
 		return "", fmt.Errorf("failed to read the directory: %w", err)
 	}
 
-	var table bytes.Buffer
+	var table []byte
 	for _, dirEntry := range dirEntries {
 		if dirEntry.IsDir() {
 			if dirEntry.Name() == ".git" {
@@ -286,16 +284,17 @@ func (r *Repository) treeTable(dirname string) (string, error) {
 				return "", fmt.Errorf("failed to write the tree: %w", err)
 			}
 
-			table.WriteString(fmt.Sprintf("40000 %s\x00%x", dirEntry.Name(), sha1.Sum([]byte(subHash))))
+			table = fmt.Appendf(table, "40000 %s\x00%s", dirEntry.Name(), sha1.Sum([]byte(subHash)))
+
 		} else {
 			hash, _, err := r.hashBlob(os.DirFS(dirname), dirEntry.Name())
 			if err != nil {
 				return "", fmt.Errorf("failed to hash the file: %w", err)
 			}
 
-			table.WriteString(fmt.Sprintf("100644 %s\x00%s", dirEntry.Name(), hash))
+			table = fmt.Appendf(table, "100644 %s\x00%s", dirEntry.Name(), hash)
 		}
 	}
 
-	return table.String(), nil
+	return string(table), nil
 }
